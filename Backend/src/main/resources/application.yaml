@@ -7,3 +7,7 @@ restcountries:
     url: https://api.restcountries.com
     #Uses demo key if API key is not set
     key: "${REST_COUNTRIES_API_KEY:rc_live_demo}"
+
+springdoc:
+  swagger-ui:
+    path: /swagger

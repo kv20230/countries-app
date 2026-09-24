@@ -2,8 +2,10 @@ package com.github.kv20230.backend.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.kv20230.backend.exception.ExternalApiException;
 import com.github.kv20230.backend.model.dto.RestCountryResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -68,6 +70,19 @@ public class RestCountryClient {
             String rawResponse = restClient.get()
                     .uri(uri)
                     .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                        int status = response.getStatusCode().value();
+                        if (status == 401) {
+                            throw new ExternalApiException("REST Countries API key is missing or invalid.", response.getStatusCode());
+                        } else if (status == 404) {
+                            throw new ExternalApiException("Requested resource was not found on REST Countries API.", response.getStatusCode());
+                        } else {
+                            throw new ExternalApiException("External client error occurred with status: " + status, response.getStatusCode());
+                        }
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+                        throw new ExternalApiException("REST Countries API service is currently unavailable.", response.getStatusCode());
+                    })
                     .body(String.class);
 
             if (rawResponse != null) {
@@ -86,8 +101,7 @@ public class RestCountryClient {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Napaka pri dekodiranju odgovora (offset=" + offset + "): " + e.getMessage());
-            e.printStackTrace();
+            throw new ExternalApiException("Failed to parse response from REST Countries API.", HttpStatusCode.valueOf(500));
         }
         return List.of();
     }

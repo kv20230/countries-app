@@ -1,10 +1,12 @@
 package com.github.kv20230.backend.exception;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -24,6 +26,21 @@ public class GlobalExceptionHandler {
         problemDetail.setProperty("upstreamStatusCode", ex.getStatusCode().value());
 
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(problemDetail);
+    }
+
+    /**
+     * Keeps the status the service chose (404 for an unknown country, 400 for a bad page).
+     * Without this the generic handler below would turn every one of them into a 500.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetail> handleResponseStatusException(ResponseStatusException ex) {
+        HttpStatusCode status = ex.getStatusCode();
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, ex.getReason());
+        HttpStatus resolved = HttpStatus.resolve(status.value());
+        problemDetail.setTitle(resolved != null ? resolved.getReasonPhrase() : "Request failed");
+        problemDetail.setProperty("timestamp", Instant.now());
+
+        return ResponseEntity.status(status).body(problemDetail);
     }
 
     @ExceptionHandler(Exception.class)

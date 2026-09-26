@@ -14,8 +14,22 @@ public record Country(
         List<String> capitals,
         List<String> languages,
         List<String> borders,
+        /** "Euro (€)" when a symbol is known, otherwise just the name. */
         List<String> currencies,
         String flagEmoji,
         String flagUrl,
-        List<String> timezones
-) {}
+        List<String> timezones,
+        /** International dialling prefixes, already prefixed with "+". */
+        List<String> callingCodes,
+        List<String> topLevelDomains,
+        String drivingSide,
+        Boolean unMember,
+        Boolean euMember,
+        Boolean landlocked,
+        String governmentType,
+        String demonym,
+        String startOfWeek,
+        String wikipediaUrl,
+        String description
+) {
+}

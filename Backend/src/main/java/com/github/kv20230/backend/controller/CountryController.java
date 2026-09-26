@@ -1,7 +1,7 @@
 package com.github.kv20230.backend.controller;
 
 import com.github.kv20230.backend.model.dto.Country;
-import com.github.kv20230.backend.model.dto.RestCountryResponse;
+import com.github.kv20230.backend.model.dto.PagedResponse;
 import com.github.kv20230.backend.service.CountryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,6 +20,9 @@ import java.util.List;
 @Tag(name = "Country API", description = "Endpoints for fetching, searching and sorting country information")
 public class CountryController {
 
+    private static final String PAGE_DESCRIPTION = "1-based page number";
+    private static final String SIZE_DESCRIPTION = "Entries per page (1-100)";
+
     private final CountryService countryService;
 
     public CountryController(CountryService countryService) {
@@ -28,12 +31,17 @@ public class CountryController {
 
     @Operation(
             summary = "Fetch all countries",
-            description = "Retrieves a list of all countries mapped from REST Countries v5 and caches results in memory."
+            description = "Retrieves one page of all countries mapped from REST Countries v5. The full dataset is cached in memory."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Successfully retrieved country list"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid page or size",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -47,19 +55,28 @@ public class CountryController {
             )
     })
     @GetMapping
-    //returns a list of all countries
-    public List<Country> getAllCountries() {
-        return countryService.getAllCountries();
+    //returns one page of all countries
+    public PagedResponse<Country> getAllCountries(
+            @Parameter(description = PAGE_DESCRIPTION, example = "1")
+            @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = SIZE_DESCRIPTION, example = "10")
+            @RequestParam(defaultValue = "10") int size) {
+        return countryService.paginate(countryService.getAllCountries(), page, size);
     }
 
     @Operation(
             summary = "Sort countries by a chosen region.",
-            description = "Retrieves a list of all countries in a certain region."
+            description = "Retrieves one page of the countries in a certain region."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Successfully sorted countries by region"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid page or size",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -73,21 +90,30 @@ public class CountryController {
             )
     })
     @GetMapping("/regions")
-    public List<Country> getCountriesByRegion (
+    public PagedResponse<Country> getCountriesByRegion (
             @Parameter(description = "Name of the region (e.g. Europe, Americas, Asia, Africa, Oceania)", example = "Europe")
-            @RequestParam String region) {
+            @RequestParam String region,
+            @Parameter(description = PAGE_DESCRIPTION, example = "1")
+            @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = SIZE_DESCRIPTION, example = "10")
+            @RequestParam(defaultValue = "10") int size) {
         List<Country> cachedCountries = countryService.getAllCountries();
-        return countryService.getCountriesByRegion(cachedCountries, region);
+        return countryService.paginate(countryService.getCountriesByRegion(cachedCountries, region), page, size);
     }
 
     @Operation(
             summary = "Sorts countries by population.",
-            description = "Retrieves a list that is sorted by population ascending or descending."
+            description = "Retrieves one page of the list sorted by population ascending or descending."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Successfully sorted countries by population"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid page or size",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -96,11 +122,15 @@ public class CountryController {
             )
     })
     @GetMapping("/population")
-    public List<Country> sortCountriesByPopulation(
+    public PagedResponse<Country> sortCountriesByPopulation(
             @Parameter(description = "The countries can either be sorted population ascending or descending", example = "ascending")
-            @RequestParam String direction) {
+            @RequestParam String direction,
+            @Parameter(description = PAGE_DESCRIPTION, example = "1")
+            @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = SIZE_DESCRIPTION, example = "10")
+            @RequestParam(defaultValue = "10") int size) {
         List<Country> cachedCountries = countryService.getAllCountries();
-        return countryService.sortCountriesByPopulation(cachedCountries, direction);
+        return countryService.paginate(countryService.sortCountriesByPopulation(cachedCountries, direction), page, size);
     }
 
     @Operation(
@@ -111,6 +141,11 @@ public class CountryController {
             @ApiResponse(
                     responseCode = "200",
                     description = "Successfully retrieves the country."
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No country with that code",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -127,13 +162,46 @@ public class CountryController {
     }
 
     @Operation(
+            summary = "Retrieves the bordering countries.",
+            description = "Retrieves the full country objects for every border code of the given country, in the API's order."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Successfully retrieves the neighbours (empty for island countries)."
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "No country with that code",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "Internal server error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
+            )
+    })
+    @GetMapping("/{alpha3Code}/borders")
+    public List<Country> getBorders(
+            @Parameter(description = "Unique 3 letter code for the country", example = "SVN")
+            @PathVariable String alpha3Code) {
+        List<Country> cachedCountries = countryService.getAllCountries();
+        return countryService.getBorders(cachedCountries, alpha3Code);
+    }
+
+    @Operation(
             summary = "Retrieves a country.",
-            description = "Retrieves a country that matches the given name."
+            description = "Retrieves one page of the countries whose common or official name contains the given text."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Successfully retrieves the country."
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid page or size",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -142,11 +210,15 @@ public class CountryController {
             )
     })
     @GetMapping("/names")
-    public List<Country> getCountriesByName(
+    public PagedResponse<Country> getCountriesByName(
             @Parameter(description = "Name of the country, either official or common", example = "Slovenia")
-            @RequestParam String name) {
+            @RequestParam String name,
+            @Parameter(description = PAGE_DESCRIPTION, example = "1")
+            @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = SIZE_DESCRIPTION, example = "10")
+            @RequestParam(defaultValue = "10") int size) {
         List<Country> cachedCountries = countryService.getAllCountries();
-        return countryService.getCountriesByName(cachedCountries, name);
+        return countryService.paginate(countryService.getCountriesByName(cachedCountries, name), page, size);
     }
 
 

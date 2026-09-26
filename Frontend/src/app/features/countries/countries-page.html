@@ -3,14 +3,10 @@
     <div>
       <h1 class="text-3xl font-bold tracking-tight">Countries</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        @if (countries(); as all) {
-          {{ all.length | number }} countries from REST Countries, served through the Spring Boot API.
-        } @else {
-          Countries from REST Countries, served through the Spring Boot API.
-        }
+        Countries from REST Countries, served page by page through the Spring Boot API.
       </p>
     </div>
-    @if (countries()) {
+    @if (pageData()) {
       <p class="text-sm text-muted-foreground">{{ rangeLabel() }}</p>
     }
   </div>
@@ -39,10 +35,14 @@
       (valueChange)="onRegion($event)"
     />
 
-    <button z-button zType="outline" class="ml-auto" (click)="toggleSort()">
-      <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
-      Population, {{ sortDir() === 'desc' ? 'high → low' : 'low → high' }}
-    </button>
+    @if (sortEnabled()) {
+      <button z-button zType="outline" class="ml-auto" (click)="toggleSort()">
+        <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
+        Population, {{ sortDir() === 'desc' ? 'high → low' : 'low → high' }}
+      </button>
+    } @else {
+      <p class="ml-auto text-sm text-muted-foreground">Sorting applies to the unfiltered list.</p>
+    }
   </div>
 
   @if (error(); as err) {
@@ -54,7 +54,7 @@
     />
     <ng-template #errorActions>
       <div class="flex flex-wrap items-center gap-2">
-        <button z-button zType="destructive" (click)="load()">
+        <button z-button zType="destructive" (click)="retry()">
           <ng-icon name="lucideRefreshCw" />
           Retry
         </button>
@@ -74,14 +74,18 @@
             <th z-table-head class="text-xs uppercase tracking-wider">Capital</th>
             <th z-table-head class="text-xs uppercase tracking-wider">Region</th>
             <th z-table-head class="pr-4 text-right text-xs uppercase tracking-wider">
-              <button
-                type="button"
-                class="inline-flex items-center gap-1 uppercase hover:text-foreground"
-                (click)="toggleSort()"
-              >
+              @if (sortEnabled()) {
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 uppercase hover:text-foreground"
+                  (click)="toggleSort()"
+                >
+                  Population
+                  <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
+                </button>
+              } @else {
                 Population
-                <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
-              </button>
+              }
             </th>
           </tr>
         </thead>
@@ -98,7 +102,7 @@
               </tr>
             }
           } @else {
-            @for (country of pageItems(); track country.alpha3Code) {
+            @for (country of items(); track country.alpha3Code) {
               <tr z-table-row class="cursor-pointer" (click)="open(country)">
                 <td z-table-cell class="pl-4 py-3">
                   @if (country.flagUrl) {
@@ -149,7 +153,7 @@
 
     <div class="flex flex-wrap items-center justify-between gap-4">
       <p class="text-sm text-muted-foreground">
-        The backend caches the full dataset, so the list is one request; search, filter and sort run over that cache.
+        Search, region filter, sort and paging run on the Spring Boot API; each page is one request.
       </p>
       <nav aria-label="Pagination">
         <ul z-pagination-content>

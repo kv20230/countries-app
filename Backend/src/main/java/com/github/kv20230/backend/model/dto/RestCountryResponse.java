@@ -17,7 +17,18 @@ public record RestCountryResponse(
         List<Capital> capitals,
         List<Language> languages,
         List<Currency> currencies,
-        List<String> timezones
+        List<String> timezones,
+        @JsonProperty("calling_codes") List<String> callingCodes,
+        List<String> tlds,
+        Cars cars,
+        Classification classification,
+        Boolean landlocked,
+        @JsonProperty("government_type") String governmentType,
+        Demonyms demonyms,
+        @JsonProperty("date") DateInfo date,
+        Memberships memberships,
+        Links links,
+        Descriptions descriptions
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Name(
@@ -62,5 +73,51 @@ public record RestCountryResponse(
             String name,
             @JsonProperty("native_name") String nativeName
     ) {}
-}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Cars(
+            @JsonProperty("driving_side") String drivingSide
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Classification(
+            @JsonProperty("un_member") Boolean unMember,
+            Boolean sovereign
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Demonyms(
+            Demonym eng
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Demonym(
+            String m,
+            String f
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DateInfo(
+            @JsonProperty("start_of_week") String startOfWeek
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Memberships(
+            Boolean eu,
+            Boolean nato,
+            Boolean schengen,
+            Boolean eurozone
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Links(
+            String wikipedia,
+            String official
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Descriptions(
+            @JsonProperty("short") String shortDescription,
+            @JsonProperty("long") String longDescription
+    ) {}
+}

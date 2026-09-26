@@ -1,8 +1,8 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, shareReplay } from 'rxjs';
+import { Observable } from 'rxjs';
 
-import { ApiError, Country } from '@/core/models/country';
+import { ApiError, Country, ListCriteria, PagedResponse } from '@/core/models/country';
 
 @Injectable({ providedIn: 'root' })
 export class CountriesService {
@@ -10,19 +10,40 @@ export class CountriesService {
   private readonly baseUrl = '/api/countries';
 
   /**
-   * The backend caches the full REST Countries dataset, so the list is fetched once
-   * and replayed to every subscriber. On error the replay resets, so a retry re-fetches.
+   * One page of the list. The criteria picks the endpoint; every endpoint takes the same
+   * `page` (1-based) and `size` query parameters and returns the same `PagedResponse`.
    */
-  private readonly all$: Observable<Country[]> = this.http
-    .get<Country[]>(this.baseUrl)
-    .pipe(shareReplay({ bufferSize: 1, refCount: false }));
+  getPage(criteria: ListCriteria, page: number, size: number): Observable<PagedResponse<Country>> {
+    let path = '';
+    let params = new HttpParams().set('page', page).set('size', size);
 
-  getAll(): Observable<Country[]> {
-    return this.all$;
+    switch (criteria.kind) {
+      case 'name':
+        path = '/names';
+        params = params.set('name', criteria.query);
+        break;
+      case 'region':
+        path = '/regions';
+        params = params.set('region', criteria.region);
+        break;
+      case 'population':
+        path = '/population';
+        params = params.set('direction', criteria.direction);
+        break;
+      case 'all':
+        break;
+    }
+
+    return this.http.get<PagedResponse<Country>>(`${this.baseUrl}${path}`, { params });
   }
 
   getByCode(alpha3Code: string): Observable<Country> {
     return this.http.get<Country>(`${this.baseUrl}/${encodeURIComponent(alpha3Code)}`);
+  }
+
+  /** The countries behind a country's border codes, resolved by the backend. Empty for islands. */
+  getBorders(alpha3Code: string): Observable<Country[]> {
+    return this.http.get<Country[]>(`${this.baseUrl}/${encodeURIComponent(alpha3Code)}/borders`);
   }
 
   static toApiError(err: unknown): ApiError {

@@ -1,6 +1,6 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { catchError, map, merge, of, Subject, switchMap, tap } from 'rxjs';
@@ -52,14 +52,10 @@ export class CountryDetailPage {
   private readonly retry$ = new Subject<void>();
 
   protected readonly country = signal<Country | null>(null);
+  /** Neighbours from `/api/countries/{code}/borders`; empty until they arrive or when the request fails. */
+  private readonly neighbours = signal<Country[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<ApiError | null>(null);
-
-  /** The cached list, used to resolve border codes to names and flags. Empty until it arrives. */
-  private readonly all = toSignal(this.service.getAll().pipe(catchError(() => of([] as Country[]))), {
-    initialValue: [] as Country[],
-  });
-  private readonly byCode = computed(() => new Map(this.all().map(c => [c.alpha3Code, c])));
 
   protected readonly eyebrow = computed(() => {
     const c = this.country();
@@ -94,21 +90,16 @@ export class CountryDetailPage {
     ];
   });
 
-  protected readonly borders = computed<BorderChip[]>(() => {
-    const codes = this.country()?.borders ?? [];
-    const lookup = this.byCode();
-    return codes
-      .map(code => {
-        const match = lookup.get(code);
-        return {
-          code,
-          name: match?.commonName ?? code,
-          officialName: match?.officialName ?? null,
-          flagUrl: match?.flagUrl ?? null,
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  });
+  protected readonly borders = computed<BorderChip[]>(() =>
+    this.neighbours()
+      .map(n => ({
+        code: n.alpha3Code,
+        name: n.commonName,
+        officialName: n.officialName,
+        flagUrl: n.flagUrl,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  );
 
   constructor() {
     const code$ = toObservable(this.code);
@@ -119,17 +110,25 @@ export class CountryDetailPage {
         tap(() => {
           this.loading.set(true);
           this.error.set(null);
+          this.neighbours.set([]);
         }),
         switchMap(code =>
           this.service.getByCode(code).pipe(
-            map(country => ({ country, error: null as ApiError | null })),
-            catchError(err => of({ country: null, error: CountriesService.toApiError(err) })),
+            // The neighbours are a second request; if it fails the page still shows the country.
+            switchMap(country =>
+              this.service.getBorders(code).pipe(
+                catchError(() => of([] as Country[])),
+                map(neighbours => ({ country, neighbours, error: null as ApiError | null })),
+              ),
+            ),
+            catchError(err => of({ country: null, neighbours: [] as Country[], error: CountriesService.toApiError(err) })),
           ),
         ),
         takeUntilDestroyed(),
       )
       .subscribe(result => {
         this.country.set(result.country);
+        this.neighbours.set(result.neighbours);
         this.error.set(result.error);
         this.loading.set(false);
       });

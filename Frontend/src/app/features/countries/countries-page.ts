@@ -3,17 +3,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   inject,
   linkedSignal,
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
+import { catchError, distinctUntilChanged, map, merge, of, Subject, switchMap, tap, timer } from 'rxjs';
 
-import { ApiError, Country, REGIONS, SortDirection } from '@/core/models/country';
+import { ApiError, Country, ListCriteria, PagedResponse, REGIONS, SortDirection } from '@/core/models/country';
 import { CountriesService } from '@/core/services/countries.service';
 import { ZardAlertComponent } from '@/shared/components/alert';
 import { ZardButtonComponent } from '@/shared/components/button';
@@ -27,6 +27,13 @@ import { ZardToggleGroupComponent, ZardToggleGroupItem } from '@/shared/componen
 
 const PAGE_SIZE = 10;
 const ALL_REGIONS = 'All';
+/** Wait for typing to pause before hitting `/names`, so not every keystroke is a request. */
+const SEARCH_DEBOUNCE_MS = 300;
+
+interface PageRequest {
+  criteria: ListCriteria;
+  page: number;
+}
 
 @Component({
   selector: 'app-countries-page',
@@ -51,8 +58,8 @@ const ALL_REGIONS = 'All';
 export class CountriesPage {
   private readonly service = inject(CountriesService);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly regionGroup = viewChild(ZardToggleGroupComponent);
+  private readonly retry$ = new Subject<void>();
 
   protected readonly regionItems: ZardToggleGroupItem[] = [
     { value: ALL_REGIONS, label: 'All' },
@@ -60,9 +67,9 @@ export class CountriesPage {
   ];
   protected readonly skeletonRows = Array.from({ length: PAGE_SIZE }, (_, i) => i);
 
-  /** Full dataset from `/api/countries`; `null` until the first request resolves. */
-  protected readonly countries = signal<Country[] | null>(null);
-  protected readonly loading = signal(false);
+  /** The page the backend last returned; `null` until the first request resolves. */
+  protected readonly pageData = signal<PagedResponse<Country> | null>(null);
+  protected readonly loading = signal(true);
   protected readonly error = signal<ApiError | null>(null);
   protected readonly showErrorDetails = signal(false);
 
@@ -70,55 +77,51 @@ export class CountriesPage {
   protected readonly region = signal<string>(ALL_REGIONS);
   protected readonly sortDir = signal<SortDirection>('desc');
 
-  /** Resets to page 1 whenever the search, region or sort changes. */
+  /**
+   * The backend has one endpoint per criterion, so exactly one applies: a search wins over a
+   * region, and the population sort only orders the plain list. Setting one control clears
+   * the others (see `onSearch`/`onRegion`) so what you see matches what was requested.
+   */
+  protected readonly criteria = computed<ListCriteria>(() => {
+    const query = this.query().trim();
+    if (query !== '') {
+      return { kind: 'name', query };
+    }
+    const region = this.region();
+    if (region !== ALL_REGIONS) {
+      return { kind: 'region', region };
+    }
+    return { kind: 'population', direction: this.sortDir() };
+  });
+
+  /** Resets to page 1 whenever the criteria change. */
   protected readonly page = linkedSignal<number>(() => {
-    this.query();
-    this.region();
-    this.sortDir();
+    this.criteria();
     return 1;
   });
 
-  protected readonly filtered = computed<Country[]>(() => {
-    const all = this.countries() ?? [];
-    const query = this.query().trim().toLowerCase();
-    const region = this.region();
-    const direction = this.sortDir() === 'desc' ? -1 : 1;
+  private readonly request = computed<PageRequest>(() => ({ criteria: this.criteria(), page: this.page() }));
 
-    return all
-      .filter(c => region === ALL_REGIONS || (c.region ?? '').toLowerCase() === region.toLowerCase())
-      .filter(
-        c =>
-          query === '' ||
-          c.commonName.toLowerCase().includes(query) ||
-          c.officialName.toLowerCase().includes(query),
-      )
-      .sort((a, b) => direction * ((a.population ?? 0) - (b.population ?? 0)));
-  });
+  protected readonly items = computed(() => this.pageData()?.items ?? []);
+  protected readonly total = computed(() => this.pageData()?.totalItems ?? 0);
+  protected readonly pageCount = computed(() => this.pageData()?.totalPages ?? 1);
 
-  protected readonly total = computed(() => this.filtered().length);
-  protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
-  protected readonly pageItems = computed(() => {
-    const start = (this.page() - 1) * PAGE_SIZE;
-    return this.filtered().slice(start, start + PAGE_SIZE);
-  });
-
-  protected readonly hasFilters = computed(() => this.query().trim() !== '' || this.region() !== ALL_REGIONS);
+  protected readonly sortEnabled = computed(() => this.criteria().kind === 'population');
+  protected readonly hasFilters = computed(() => this.criteria().kind !== 'population');
 
   protected readonly rangeLabel = computed(() => {
-    const total = this.total();
-    if (total === 0) {
+    const data = this.pageData();
+    if (!data || data.totalItems === 0) {
       return 'Showing 0 results';
     }
-    const start = (this.page() - 1) * PAGE_SIZE + 1;
-    const end = Math.min(total, start + PAGE_SIZE - 1);
-    const scope = this.region() === ALL_REGIONS ? '' : ` in ${this.region()}`;
-    return `Showing ${start}–${end} of ${total}${scope}`;
+    const start = (data.page - 1) * data.size + 1;
+    const end = start + data.items.length - 1;
+    return `Showing ${start}–${end} of ${data.totalItems}${this.scopeLabel()}`;
   });
 
   protected readonly emptyTitle = computed(() => {
     const query = this.query().trim();
-    const scope = this.region() === ALL_REGIONS ? '' : ` in ${this.region()}`;
-    return query ? `No countries match "${query}"${scope}` : `No countries${scope}`;
+    return query ? `No countries match "${query}"` : `No countries${this.scopeLabel()}`;
   });
 
   protected readonly errorDescription = computed(() => {
@@ -133,31 +136,50 @@ export class CountriesPage {
   });
 
   constructor() {
-    this.load();
+    // Typing pauses for a moment before a search request goes out; page and region changes go straight away.
+    const request$ = toObservable(this.request).pipe(
+      switchMap(req => (req.criteria.kind === 'name' ? timer(SEARCH_DEBOUNCE_MS).pipe(map(() => req)) : of(req))),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+
+    merge(request$, this.retry$.pipe(map(() => this.request())))
+      .pipe(
+        tap(() => {
+          this.loading.set(true);
+          this.error.set(null);
+          this.showErrorDetails.set(false);
+        }),
+        switchMap(req =>
+          this.service.getPage(req.criteria, req.page, PAGE_SIZE).pipe(
+            map(data => ({ data, error: null as ApiError | null })),
+            catchError(err => of({ data: null, error: CountriesService.toApiError(err) })),
+          ),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe(result => {
+        if (result.data) {
+          this.pageData.set(result.data);
+        }
+        this.error.set(result.error);
+        this.loading.set(false);
+      });
   }
 
-  protected load(): void {
-    this.loading.set(true);
-    this.error.set(null);
-    this.showErrorDetails.set(false);
+  private scopeLabel(): string {
+    const criteria = this.criteria();
+    return criteria.kind === 'region' ? ` in ${criteria.region}` : '';
+  }
 
-    this.service
-      .getAll()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: countries => {
-          this.countries.set(countries);
-          this.loading.set(false);
-        },
-        error: err => {
-          this.error.set(CountriesService.toApiError(err));
-          this.loading.set(false);
-        },
-      });
+  protected retry(): void {
+    this.retry$.next();
   }
 
   protected onSearch(event: Event): void {
     this.query.set((event.target as HTMLInputElement).value);
+    if (this.query().trim() !== '' && this.region() !== ALL_REGIONS) {
+      this.setRegion(ALL_REGIONS);
+    }
   }
 
   protected onRegion(value: string | string[]): void {
@@ -167,6 +189,9 @@ export class CountriesPage {
       // Deselecting the active item in single mode leaves nothing pressed; keep "All" lit.
       this.regionGroup()?.writeValue(ALL_REGIONS);
     }
+    if (next !== ALL_REGIONS) {
+      this.query.set('');
+    }
   }
 
   protected toggleSort(): void {
@@ -175,8 +200,12 @@ export class CountriesPage {
 
   protected clearFilters(): void {
     this.query.set('');
-    this.region.set(ALL_REGIONS);
-    this.regionGroup()?.writeValue(ALL_REGIONS);
+    this.setRegion(ALL_REGIONS);
+  }
+
+  private setRegion(region: string): void {
+    this.region.set(region);
+    this.regionGroup()?.writeValue(region);
   }
 
   protected previousPage(): void {

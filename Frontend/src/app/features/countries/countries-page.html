@@ -10,6 +10,9 @@
         }
       </p>
     </div>
+    @if (countries()) {
+      <p class="text-sm text-muted-foreground">{{ rangeLabel() }}</p>
+    }
   </div>
 
   <div class="flex flex-wrap items-center gap-3">
@@ -95,8 +98,8 @@
               </tr>
             }
           } @else {
-            @for (country of filtered(); track country.alpha3Code) {
-              <tr z-table-row>
+            @for (country of pageItems(); track country.alpha3Code) {
+              <tr z-table-row class="cursor-pointer" (click)="open(country)">
                 <td z-table-cell class="pl-4 py-3">
                   @if (country.flagUrl) {
                     <img
@@ -109,7 +112,15 @@
                     <span class="text-2xl leading-none">{{ country.flagEmoji }}</span>
                   }
                 </td>
-                <td z-table-cell class="py-3 font-semibold">{{ country.commonName }}</td>
+                <td z-table-cell class="py-3">
+                  <a
+                    class="font-semibold hover:underline"
+                    [routerLink]="['/countries', country.alpha3Code]"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ country.commonName }}
+                  </a>
+                </td>
                 <td z-table-cell class="py-3">{{ country.capitals.join(', ') || '—' }}</td>
                 <td z-table-cell class="py-3">{{ country.region ?? '—' }}</td>
                 <td z-table-cell class="py-3 pr-4 text-right tabular-nums">
@@ -136,8 +147,23 @@
       </table>
     </div>
 
-    <p class="text-sm text-muted-foreground">
-      The backend caches the full dataset, so the list is one request; search, filter and sort run over that cache.
-    </p>
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <p class="text-sm text-muted-foreground">
+        The backend caches the full dataset, so the list is one request; search, filter and sort run over that cache.
+      </p>
+      <nav aria-label="Pagination">
+        <ul z-pagination-content>
+          <li z-pagination-item>
+            <z-pagination-previous [zDisabled]="loading() || page() <= 1" (click)="previousPage()" />
+          </li>
+          <li z-pagination-item>
+            <span class="px-2 text-sm tabular-nums text-muted-foreground">{{ page() }} / {{ pageCount() }}</span>
+          </li>
+          <li z-pagination-item>
+            <z-pagination-next [zDisabled]="loading() || page() >= pageCount()" (click)="nextPage()" />
+          </li>
+        </ul>
+      </nav>
+    </div>
   }
 </section>

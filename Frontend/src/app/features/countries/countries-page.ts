@@ -5,10 +5,12 @@ import {
   computed,
   DestroyRef,
   inject,
+  linkedSignal,
   signal,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 
 import { ApiError, Country, REGIONS, SortDirection } from '@/core/models/country';
@@ -18,10 +20,12 @@ import { ZardButtonComponent } from '@/shared/components/button';
 import { ZardEmptyComponent } from '@/shared/components/empty';
 import { ZardInputComponent } from '@/shared/components/input';
 import { ZardInputGroupImports } from '@/shared/components/input-group';
+import { ZardPaginationImports } from '@/shared/components/pagination';
 import { ZardSkeletonComponent } from '@/shared/components/skeleton';
 import { ZardTableImports } from '@/shared/components/table';
 import { ZardToggleGroupComponent, ZardToggleGroupItem } from '@/shared/components/toggle-group';
 
+const PAGE_SIZE = 10;
 const ALL_REGIONS = 'All';
 
 @Component({
@@ -29,12 +33,14 @@ const ALL_REGIONS = 'All';
   imports: [
     DecimalPipe,
     JsonPipe,
+    RouterLink,
     NgIcon,
     ZardAlertComponent,
     ZardButtonComponent,
     ZardEmptyComponent,
     ZardInputComponent,
     ZardInputGroupImports,
+    ZardPaginationImports,
     ZardSkeletonComponent,
     ZardTableImports,
     ZardToggleGroupComponent,
@@ -44,6 +50,7 @@ const ALL_REGIONS = 'All';
 })
 export class CountriesPage {
   private readonly service = inject(CountriesService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly regionGroup = viewChild(ZardToggleGroupComponent);
 
@@ -51,7 +58,7 @@ export class CountriesPage {
     { value: ALL_REGIONS, label: 'All' },
     ...REGIONS.map(region => ({ value: region, label: region })),
   ];
-  protected readonly skeletonRows = Array.from({ length: 10 }, (_, i) => i);
+  protected readonly skeletonRows = Array.from({ length: PAGE_SIZE }, (_, i) => i);
 
   /** Full dataset from `/api/countries`; `null` until the first request resolves. */
   protected readonly countries = signal<Country[] | null>(null);
@@ -62,6 +69,14 @@ export class CountriesPage {
   protected readonly query = signal('');
   protected readonly region = signal<string>(ALL_REGIONS);
   protected readonly sortDir = signal<SortDirection>('desc');
+
+  /** Resets to page 1 whenever the search, region or sort changes. */
+  protected readonly page = linkedSignal<number>(() => {
+    this.query();
+    this.region();
+    this.sortDir();
+    return 1;
+  });
 
   protected readonly filtered = computed<Country[]>(() => {
     const all = this.countries() ?? [];
@@ -80,7 +95,25 @@ export class CountriesPage {
       .sort((a, b) => direction * ((a.population ?? 0) - (b.population ?? 0)));
   });
 
+  protected readonly total = computed(() => this.filtered().length);
+  protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
+  protected readonly pageItems = computed(() => {
+    const start = (this.page() - 1) * PAGE_SIZE;
+    return this.filtered().slice(start, start + PAGE_SIZE);
+  });
+
   protected readonly hasFilters = computed(() => this.query().trim() !== '' || this.region() !== ALL_REGIONS);
+
+  protected readonly rangeLabel = computed(() => {
+    const total = this.total();
+    if (total === 0) {
+      return 'Showing 0 results';
+    }
+    const start = (this.page() - 1) * PAGE_SIZE + 1;
+    const end = Math.min(total, start + PAGE_SIZE - 1);
+    const scope = this.region() === ALL_REGIONS ? '' : ` in ${this.region()}`;
+    return `Showing ${start}–${end} of ${total}${scope}`;
+  });
 
   protected readonly emptyTitle = computed(() => {
     const query = this.query().trim();
@@ -146,7 +179,19 @@ export class CountriesPage {
     this.regionGroup()?.writeValue(ALL_REGIONS);
   }
 
+  protected previousPage(): void {
+    this.page.update(p => Math.max(1, p - 1));
+  }
+
+  protected nextPage(): void {
+    this.page.update(p => Math.min(this.pageCount(), p + 1));
+  }
+
   protected toggleErrorDetails(): void {
     this.showErrorDetails.update(v => !v);
+  }
+
+  protected open(country: Country): void {
+    void this.router.navigate(['/countries', country.alpha3Code]);
   }
 }

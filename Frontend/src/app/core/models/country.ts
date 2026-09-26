@@ -17,6 +17,11 @@ export interface Country {
   timezones: string[];
 }
 
+export const REGIONS = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania'] as const;
+export type Region = (typeof REGIONS)[number];
+
+export type SortDirection = 'asc' | 'desc';
+
 /** Shape of the RFC 9457 ProblemDetail the backend's @ControllerAdvice returns. */
 export interface ApiError {
   status: number;

@@ -3,9 +3,13 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideRouter } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowDown,
+  lucideArrowUp,
   lucideCircleAlert,
   lucideGlobe,
   lucideRefreshCw,
+  lucideSearch,
+  lucideSearchX,
 } from '@ng-icons/lucide';
 
 import { routes } from './app.routes';
@@ -18,9 +22,13 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch()),
     provideZard(),
     provideIcons({
+      lucideArrowDown,
+      lucideArrowUp,
       lucideCircleAlert,
       lucideGlobe,
       lucideRefreshCw,
+      lucideSearch,
+      lucideSearchX,
     }),
   ],
 };

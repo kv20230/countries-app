@@ -2,7 +2,44 @@
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="text-3xl font-bold tracking-tight">Countries</h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        @if (countries(); as all) {
+          {{ all.length | number }} countries from REST Countries, served through the Spring Boot API.
+        } @else {
+          Countries from REST Countries, served through the Spring Boot API.
+        }
+      </p>
     </div>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-3">
+    <z-input-group class="w-full max-w-md">
+      <z-input-group-addon>
+        <ng-icon name="lucideSearch" />
+      </z-input-group-addon>
+      <input
+        z-input
+        type="search"
+        placeholder="Search by name…"
+        aria-label="Search by name"
+        [value]="query()"
+        (input)="onSearch($event)"
+      />
+    </z-input-group>
+
+    <z-toggle-group
+      zMode="single"
+      zType="outline"
+      aria-label="Filter by region"
+      [zItems]="regionItems"
+      [zDefaultValue]="region()"
+      (valueChange)="onRegion($event)"
+    />
+
+    <button z-button zType="outline" class="ml-auto" (click)="toggleSort()">
+      <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
+      Population, {{ sortDir() === 'desc' ? 'high → low' : 'low → high' }}
+    </button>
   </div>
 
   @if (error(); as err) {
@@ -33,7 +70,16 @@
             <th z-table-head class="text-xs uppercase tracking-wider">Name</th>
             <th z-table-head class="text-xs uppercase tracking-wider">Capital</th>
             <th z-table-head class="text-xs uppercase tracking-wider">Region</th>
-            <th z-table-head class="pr-4 text-right text-xs uppercase tracking-wider">Population</th>
+            <th z-table-head class="pr-4 text-right text-xs uppercase tracking-wider">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 uppercase hover:text-foreground"
+                (click)="toggleSort()"
+              >
+                Population
+                <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
+              </button>
+            </th>
           </tr>
         </thead>
 
@@ -49,7 +95,7 @@
               </tr>
             }
           } @else {
-            @for (country of countries() ?? []; track country.alpha3Code) {
+            @for (country of filtered(); track country.alpha3Code) {
               <tr z-table-row>
                 <td z-table-cell class="pl-4 py-3">
                   @if (country.flagUrl) {
@@ -70,10 +116,28 @@
                   {{ country.population !== null ? (country.population | number) : '—' }}
                 </td>
               </tr>
+            } @empty {
+              <tr z-table-row class="hover:bg-transparent">
+                <td z-table-cell colspan="5" class="py-10">
+                  <z-empty
+                    zIcon="lucideSearchX"
+                    [zTitle]="emptyTitle()"
+                    zDescription="Try another spelling or clear the region filter."
+                    [zActions]="hasFilters() ? [clearFiltersAction] : []"
+                  />
+                  <ng-template #clearFiltersAction>
+                    <button z-button zType="outline" (click)="clearFilters()">Clear filters</button>
+                  </ng-template>
+                </td>
+              </tr>
             }
           }
         </tbody>
       </table>
     </div>
+
+    <p class="text-sm text-muted-foreground">
+      The backend caches the full dataset, so the list is one request; search, filter and sort run over that cache.
+    </p>
   }
 </section>

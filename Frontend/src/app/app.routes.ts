@@ -6,5 +6,5 @@ export const routes: Routes = [
     title: 'Countries · Country Explorer',
     loadComponent: () => import('./features/countries/countries-page').then(m => m.CountriesPage),
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: '' }, 
 ];

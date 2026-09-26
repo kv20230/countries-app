@@ -1,14 +1,28 @@
 import { DecimalPipe, JsonPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgIcon } from '@ng-icons/core';
 
-import { ApiError, Country } from '@/core/models/country';
+import { ApiError, Country, REGIONS, SortDirection } from '@/core/models/country';
 import { CountriesService } from '@/core/services/countries.service';
 import { ZardAlertComponent } from '@/shared/components/alert';
 import { ZardButtonComponent } from '@/shared/components/button';
+import { ZardEmptyComponent } from '@/shared/components/empty';
+import { ZardInputComponent } from '@/shared/components/input';
+import { ZardInputGroupImports } from '@/shared/components/input-group';
 import { ZardSkeletonComponent } from '@/shared/components/skeleton';
 import { ZardTableImports } from '@/shared/components/table';
+import { ZardToggleGroupComponent, ZardToggleGroupItem } from '@/shared/components/toggle-group';
+
+const ALL_REGIONS = 'All';
 
 @Component({
   selector: 'app-countries-page',
@@ -18,8 +32,12 @@ import { ZardTableImports } from '@/shared/components/table';
     NgIcon,
     ZardAlertComponent,
     ZardButtonComponent,
+    ZardEmptyComponent,
+    ZardInputComponent,
+    ZardInputGroupImports,
     ZardSkeletonComponent,
     ZardTableImports,
+    ZardToggleGroupComponent,
   ],
   templateUrl: './countries-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,7 +45,12 @@ import { ZardTableImports } from '@/shared/components/table';
 export class CountriesPage {
   private readonly service = inject(CountriesService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly regionGroup = viewChild(ZardToggleGroupComponent);
 
+  protected readonly regionItems: ZardToggleGroupItem[] = [
+    { value: ALL_REGIONS, label: 'All' },
+    ...REGIONS.map(region => ({ value: region, label: region })),
+  ];
   protected readonly skeletonRows = Array.from({ length: 10 }, (_, i) => i);
 
   /** Full dataset from `/api/countries`; `null` until the first request resolves. */
@@ -35,6 +58,35 @@ export class CountriesPage {
   protected readonly loading = signal(false);
   protected readonly error = signal<ApiError | null>(null);
   protected readonly showErrorDetails = signal(false);
+
+  protected readonly query = signal('');
+  protected readonly region = signal<string>(ALL_REGIONS);
+  protected readonly sortDir = signal<SortDirection>('desc');
+
+  protected readonly filtered = computed<Country[]>(() => {
+    const all = this.countries() ?? [];
+    const query = this.query().trim().toLowerCase();
+    const region = this.region();
+    const direction = this.sortDir() === 'desc' ? -1 : 1;
+
+    return all
+      .filter(c => region === ALL_REGIONS || (c.region ?? '').toLowerCase() === region.toLowerCase())
+      .filter(
+        c =>
+          query === '' ||
+          c.commonName.toLowerCase().includes(query) ||
+          c.officialName.toLowerCase().includes(query),
+      )
+      .sort((a, b) => direction * ((a.population ?? 0) - (b.population ?? 0)));
+  });
+
+  protected readonly hasFilters = computed(() => this.query().trim() !== '' || this.region() !== ALL_REGIONS);
+
+  protected readonly emptyTitle = computed(() => {
+    const query = this.query().trim();
+    const scope = this.region() === ALL_REGIONS ? '' : ` in ${this.region()}`;
+    return query ? `No countries match "${query}"${scope}` : `No countries${scope}`;
+  });
 
   protected readonly errorDescription = computed(() => {
     const err = this.error();
@@ -69,6 +121,29 @@ export class CountriesPage {
           this.loading.set(false);
         },
       });
+  }
+
+  protected onSearch(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onRegion(value: string | string[]): void {
+    const next = typeof value === 'string' && value !== '' ? value : ALL_REGIONS;
+    this.region.set(next);
+    if (value === '') {
+      // Deselecting the active item in single mode leaves nothing pressed; keep "All" lit.
+      this.regionGroup()?.writeValue(ALL_REGIONS);
+    }
+  }
+
+  protected toggleSort(): void {
+    this.sortDir.update(dir => (dir === 'desc' ? 'asc' : 'desc'));
+  }
+
+  protected clearFilters(): void {
+    this.query.set('');
+    this.region.set(ALL_REGIONS);
+    this.regionGroup()?.writeValue(ALL_REGIONS);
   }
 
   protected toggleErrorDetails(): void {

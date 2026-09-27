@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: ./Backend
+    environment:
+      # Without a key the backend falls back to rc_live_demo, which returns one sample country.
+      REST_COUNTRIES_API_KEY: ${REST_COUNTRIES_API_KEY:-rc_live_demo}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  frontend:
+    build: ./Frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+    restart: unless-stopped

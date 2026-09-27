@@ -2,9 +2,6 @@
   <div class="flex flex-wrap items-end justify-between gap-4">
     <div>
       <h1 class="text-3xl font-bold tracking-tight">Countries</h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        Countries from REST Countries, served page by page through the Spring Boot API.
-      </p>
     </div>
     @if (pageData()) {
       <p class="text-sm text-muted-foreground">{{ rangeLabel() }}</p>
@@ -38,10 +35,10 @@
     @if (sortEnabled()) {
       <button z-button zType="outline" class="ml-auto" (click)="toggleSort()">
         <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
-        Population, {{ sortDir() === 'desc' ? 'high → low' : 'low → high' }}
+        Population
       </button>
     } @else {
-      <p class="ml-auto text-sm text-muted-foreground">Sorting applies to the unfiltered list.</p>
+      <p class="ml-auto text-sm text-muted-foreground">Sorting by population applies to the unfiltered list.</p>
     }
   </div>
 
@@ -73,20 +70,7 @@
             <th z-table-head class="text-xs uppercase tracking-wider">Name</th>
             <th z-table-head class="text-xs uppercase tracking-wider">Capital</th>
             <th z-table-head class="text-xs uppercase tracking-wider">Region</th>
-            <th z-table-head class="pr-4 text-right text-xs uppercase tracking-wider">
-              @if (sortEnabled()) {
-                <button
-                  type="button"
-                  class="inline-flex items-center gap-1 uppercase hover:text-foreground"
-                  (click)="toggleSort()"
-                >
-                  Population
-                  <ng-icon [name]="sortDir() === 'desc' ? 'lucideArrowDown' : 'lucideArrowUp'" />
-                </button>
-              } @else {
-                Population
-              }
-            </th>
+            <th z-table-head class="pr-4 text-right text-xs uppercase tracking-wider">Population</th>
           </tr>
         </thead>
 
@@ -137,7 +121,7 @@
                   <z-empty
                     zIcon="lucideSearchX"
                     [zTitle]="emptyTitle()"
-                    zDescription="Try another spelling or clear the region filter."
+                    zDescription="Try again or clear the region filter."
                     [zActions]="hasFilters() ? [clearFiltersAction] : []"
                   />
                   <ng-template #clearFiltersAction>
@@ -152,9 +136,6 @@
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-4">
-      <p class="text-sm text-muted-foreground">
-        Search, region filter, sort and paging run on the Spring Boot API; each page is one request.
-      </p>
       <nav aria-label="Pagination">
         <ul z-pagination-content>
           <li z-pagination-item>

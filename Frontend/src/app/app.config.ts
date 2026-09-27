@@ -5,13 +5,21 @@ import { provideIcons } from '@ng-icons/core';
 import {
   lucideArrowDown,
   lucideArrowLeft,
+  lucideArrowRight,
   lucideArrowUp,
+  lucideCheck,
   lucideCircleAlert,
+  lucideCircleCheck,
+  lucideCircleX,
+  lucideExternalLink,
   lucideGlobe,
   lucideInfo,
   lucideRefreshCw,
+  lucideRotateCcw,
   lucideSearch,
   lucideSearchX,
+  lucideSkipForward,
+  lucideTrophy,
 } from '@ng-icons/lucide';
 
 import { routes } from './app.routes';
@@ -30,13 +38,21 @@ export const appConfig: ApplicationConfig = {
     provideIcons({
       lucideArrowDown,
       lucideArrowLeft,
+      lucideArrowRight,
       lucideArrowUp,
+      lucideCheck,
       lucideCircleAlert,
+      lucideCircleCheck,
+      lucideCircleX,
+      lucideExternalLink,
       lucideGlobe,
       lucideInfo,
       lucideRefreshCw,
+      lucideRotateCcw,
       lucideSearch,
       lucideSearchX,
+      lucideSkipForward,
+      lucideTrophy,
     }),
   ],
 };

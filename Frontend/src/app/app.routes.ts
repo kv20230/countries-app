@@ -12,5 +12,10 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/country-detail/country-detail-page').then(m => m.CountryDetailPage),
   },
+  {
+    path: 'game',
+    title: 'Flag quiz · Country Explorer',
+    loadComponent: () => import('./features/flag-game/flag-game-page').then(m => m.FlagGamePage),
+  },
   { path: '**', redirectTo: '' },
 ];

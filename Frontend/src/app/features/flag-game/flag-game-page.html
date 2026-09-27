@@ -1,0 +1,206 @@
+<section class="mx-auto max-w-2xl space-y-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">Flag quiz</h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Ten random flags, one guess each.
+      </p>
+    </div>
+    @if (phase() === 'playing') {
+      <button z-button zType="ghost" zSize="sm" (click)="startGame()">
+        <ng-icon name="lucideRotateCcw" />
+        Restart
+      </button>
+    }
+  </div>
+
+  @switch (phase()) {
+    @case ('loading') {
+      <z-card>
+        <div z-card-content class="space-y-4">
+          <z-skeleton class="h-4 w-40" />
+          <z-skeleton class="mx-auto h-48 w-72 rounded-md" />
+          <z-skeleton class="h-9 w-full" />
+        </div>
+      </z-card>
+    }
+
+    @case ('error') {
+      <z-alert
+        zType="destructive"
+        [zTitle]="error()?.title ?? 'Couldn\'t load the flags'"
+        [zDescription]="error()?.detail ?? ''"
+        [zAction]="errorActions"
+      />
+      <ng-template #errorActions>
+        <button z-button zType="destructive" (click)="load()">
+          <ng-icon name="lucideRotateCcw" />
+          Retry
+        </button>
+      </ng-template>
+    }
+
+    @case ('playing') {
+      @if (current(); as round) {
+        <z-card class="overflow-visible">
+          <div z-card-header>
+            <div class="flex items-center justify-between gap-4">
+              <z-badge zType="secondary">Round {{ index() + 1 }} of {{ totalRounds() }}</z-badge>
+              <p class="text-sm font-semibold tabular-nums">
+                Score <span class="text-lg">{{ score() }}</span>
+                <span class="text-muted-foreground"> / {{ totalRounds() }}</span>
+              </p>
+            </div>
+            <div
+              class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label="Rounds answered"
+              [attr.aria-valuenow]="answered()"
+              [attr.aria-valuemax]="totalRounds()"
+            >
+              <div class="h-full rounded-full bg-primary transition-[width]" [style.width.%]="progress()"></div>
+            </div>
+          </div>
+
+          <div z-card-content class="space-y-6">
+            <p class="text-center text-lg font-semibold">Which country does this flag belong to?</p>
+
+            <img
+              class="mx-auto h-48 w-72 max-w-full rounded-md border border-border bg-muted/30 object-contain p-1 shadow-sm"
+              [src]="round.flagUrl"
+              alt="Flag to identify"
+              draggable="false"
+            />
+
+            <div class="space-y-3">
+              <label for="answer" class="sr-only">Country name</label>
+              <div class="relative">
+                <input
+                  #answerInput
+                  z-input
+                  id="answer"
+                  type="text"
+                  role="combobox"
+                  autocomplete="off"
+                  autocapitalize="words"
+                  spellcheck="false"
+                  placeholder="Type the country name…"
+                  class="h-10 text-base"
+                  aria-autocomplete="list"
+                  aria-controls="answer-suggestions"
+                  [attr.aria-expanded]="showSuggestions()"
+                  [attr.aria-activedescendant]="highlighted() >= 0 ? 'suggestion-' + highlighted() : null"
+                  [value]="answer()"
+                  [readonly]="revealed() || checking()"
+                  (input)="onAnswerInput($event)"
+                  (keydown)="onAnswerKeydown($event)"
+                  (blur)="suggestionsOpen.set(false)"
+                />
+
+                @if (showSuggestions()) {
+                  <ul
+                    id="answer-suggestions"
+                    role="listbox"
+                    aria-label="Matching countries"
+                    class="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                    (mousedown)="$event.preventDefault()"
+                  >
+                    @for (s of suggestions(); track s.name; let i = $index) {
+                      <li
+                        role="option"
+                        [id]="'suggestion-' + i"
+                        [attr.aria-selected]="i === highlighted()"
+                        class="cursor-pointer rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                        [class.bg-accent]="i === highlighted()"
+                        [class.text-accent-foreground]="i === highlighted()"
+                        (mouseenter)="highlighted.set(i)"
+                        (click)="choose(s.name)"
+                      >
+                        {{ s.name.slice(0, s.matchStart) }}<strong>{{ s.name.slice(s.matchStart, s.matchStart + s.matchLength) }}</strong>{{ s.name.slice(s.matchStart + s.matchLength) }}
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+
+              @if (checkError(); as err) {
+                <z-alert
+                  zType="destructive"
+                  zIcon="lucideCircleAlert"
+                  zTitle="Couldn't check the answer"
+                  [zDescription]="err.detail + ' Try again.'"
+                  zRole="status"
+                />
+              }
+
+              @if (revealed()) {
+                @if (round.correct) {
+                  <z-alert
+                    zTitle="Correct!"
+                    zIcon="lucideCircleCheck"
+                    [zDescription]="'It is ' + round.commonName + '.'"
+                    zRole="status"
+                    class="border-emerald-300 bg-emerald-50 text-emerald-900 [&_[data-slot=alert-description]]:text-emerald-800"
+                  />
+                } @else {
+                  <z-alert
+                    zType="destructive"
+                    zIcon="lucideCircleX"
+                    [zTitle]="round.answer ? 'Not quite' : 'Skipped'"
+                    [zDescription]="'The answer is ' + round.commonName + '.'"
+                    zRole="status"
+                  />
+                }
+              }
+
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                @if (revealed()) {
+                  <button z-button (click)="next()">
+                    {{ isLastRound() ? 'See results' : 'Next flag' }}
+                    <ng-icon name="lucideArrowRight" />
+                  </button>
+                } @else {
+                  <button z-button zType="outline" [zDisabled]="checking()" (click)="skip()">
+                    <ng-icon name="lucideSkipForward" />
+                    Skip
+                  </button>
+                  <button z-button [zDisabled]="!canSubmit()" (click)="submit()">
+                    <ng-icon name="lucideCheck" />
+                    {{ checking() ? 'Checking…' : 'Check answer' }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        </z-card>
+      }
+    }
+
+    @case ('finished') {
+      <z-card>
+        <div z-card-content class="space-y-6">
+          <div class="flex flex-col items-center gap-2 py-4 text-center">
+            <ng-icon name="lucideTrophy" class="text-4xl! text-amber-500" />
+            <p class="text-sm font-medium uppercase tracking-wider text-muted-foreground">Final score</p>
+            <p class="text-5xl font-bold tabular-nums">
+              {{ score() }} <span class="text-2xl text-muted-foreground">/ {{ totalRounds() }}</span>
+            </p>
+            <p class="text-muted-foreground">
+              @if (score() === totalRounds()) {
+                Perfect round!
+              } @else if (score() >= totalRounds() / 2) {
+                Nice work. A few more and you'll have them all.
+              } @else {
+                Tough set. Try again with new flags.
+              }
+            </p>
+            <button z-button zSize="lg" class="mt-2" (click)="startGame()">
+              <ng-icon name="lucideRotateCcw" />
+              Play again
+            </button>
+          </div>
+        </div>
+      </z-card>
+    }
+  }
+</section>

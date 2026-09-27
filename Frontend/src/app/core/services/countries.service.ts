@@ -41,7 +41,7 @@ export class CountriesService {
     return this.http.get<Country>(`${this.baseUrl}/${encodeURIComponent(alpha3Code)}`);
   }
 
-  /** The countries behind a country's border codes, resolved by the backend. Empty for islands. */
+  /** The countries behind a country's border codes. */
   getBorders(alpha3Code: string): Observable<Country[]> {
     return this.http.get<Country[]>(`${this.baseUrl}/${encodeURIComponent(alpha3Code)}/borders`);
   }

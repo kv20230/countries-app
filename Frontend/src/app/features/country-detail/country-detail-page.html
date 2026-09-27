@@ -67,7 +67,6 @@
             {{ c.officialName }} · Capital {{ c.capitals.join(', ') || '—' }}
           </p>
         </div>
-        <z-badge zType="secondary" class="text-sm" [zTooltip]="'ISO 3166-1 alpha-3'">{{ c.alpha3Code }}</z-badge>
       </div>
     </z-card>
 
@@ -96,7 +95,6 @@
         <div z-card-content>
           <p class="inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Density
-            <ng-icon name="lucideInfo" [zTooltip]="'Population divided by area, rounded'" />
           </p>
           <p class="mt-1 text-3xl font-bold tabular-nums">
             @if (density(); as d) {
@@ -125,8 +123,19 @@
 
     <div class="grid gap-6 lg:grid-cols-2">
       <z-card>
-        <div z-card-header>
-          <h2 z-card-title zTitle="Facts"></h2>
+        <div z-card-header class="flex items-start justify-between gap-4">
+          <div>
+            <h2 z-card-title zTitle="Facts"></h2>
+            @if (c.description) {
+              <p z-card-description [zDescription]="c.description"></p>
+            }
+          </div>
+          @if (c.wikipediaUrl) {
+            <a z-button zType="outline" zSize="sm" [href]="c.wikipediaUrl" target="_blank" rel="noopener">
+              Wikipedia
+              <ng-icon name="lucideExternalLink" />
+            </a>
+          }
         </div>
         <div z-card-content>
           <dl>
@@ -146,7 +155,6 @@
       <z-card>
         <div z-card-header>
           <h2 z-card-title zTitle="Bordering countries"></h2>
-          <p z-card-description zDescription="Neighbours resolved by the API from the country's border codes."></p>
         </div>
         <div z-card-content>
           @if (borders().length) {
@@ -157,7 +165,6 @@
                   zType="outline"
                   class="gap-2 px-3 py-1.5 text-sm font-semibold"
                   [routerLink]="['/countries', border.code]"
-                  [zTooltip]="border.officialName ?? border.code"
                 >
                   @if (border.flagUrl) {
                     <img class="h-3.5 w-5 rounded-[2px] object-cover" [src]="border.flagUrl" alt="" />

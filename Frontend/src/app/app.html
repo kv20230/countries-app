@@ -1,6 +1,36 @@
 <header class="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
   <div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
     <a routerLink="/" class="text-xl font-bold tracking-tight">Country Explorer</a>
+
+    <nav z-navigation-menu [zViewport]="false" aria-label="Main">
+      <ul z-navigation-menu-list>
+        <li z-navigation-menu-item>
+          <a
+            z-navigation-menu-link
+            routerLink="/"
+            routerLinkActive
+            #countriesLink="routerLinkActive"
+            [routerLinkActiveOptions]="{ exact: false }"
+            [zActive]="countriesLink.isActive && !gameLink.isActive"
+            class="font-semibold"
+          >
+            Countries
+          </a>
+        </li>
+        <li z-navigation-menu-item>
+          <a
+            z-navigation-menu-link
+            routerLink="/game"
+            routerLinkActive
+            #gameLink="routerLinkActive"
+            [zActive]="gameLink.isActive"
+            class="font-semibold"
+          >
+            Flag quiz
+          </a>
+        </li>
+      </ul>
+    </nav>
   </div>
 </header>
 

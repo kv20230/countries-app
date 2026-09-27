@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Service responsible for fetching, filtering, sorting, and paginating country data.
+ * Utilizes Spring Caching to minimize redundant calls to the external REST Countries API.
+ */
 @Service
 public class CountryService {
 
@@ -28,7 +32,13 @@ public class CountryService {
         this.countryMapper = countryMapper;
     }
 
-    //Function that call external REST Country API until it gets all countries and caches the results.
+
+    /**
+     * Fetches all available countries from the external API, maps them to DTOs, and caches the result.
+     * Subsequent calls will bypass the external API and return the cached data.
+     *
+     * @return a complete list of mapped {@link Country} objects
+     */
     @Cacheable("countries")
     public List<Country> getAllCountries() {
         return restCountryClient.fetchAllCountries().stream()
@@ -36,6 +46,13 @@ public class CountryService {
                 .toList();
     }
 
+    /**
+     * Filters a list of countries based on their region.
+     *
+     * @param cachedCountries the base list of countries to filter
+     * @param region          the target region to filter by (case-insensitive)
+     * @return a filtered list of countries matching the region, or the original list if the region is null/blank
+     */
     public List<Country> getCountriesByRegion(List<Country> cachedCountries, String region) {
         if (region == null || region.isBlank()) {
             return cachedCountries;
@@ -45,6 +62,13 @@ public class CountryService {
                 .toList();
     }
 
+    /**
+     * Sorts a given list of countries by their population.
+     *
+     * @param cachedCountries the list of countries to sort
+     * @param direction       the sorting direction ("asc" for ascending, "desc" for descending)
+     * @return a sorted list of countries, or the original list if the direction is null/blank
+     */
     public List<Country> sortCountriesByPopulation(List<Country> cachedCountries, String direction) {
         if (direction == null || direction.isBlank()) {
             return cachedCountries;
@@ -65,6 +89,14 @@ public class CountryService {
                 .toList();
     }
 
+    /**
+     * Retrieves a specific country from the provided list using its 3-letter ISO code.
+     *
+     * @param cachedCountries the list of countries to search within
+     * @param alpha3Code      the 3-letter ISO 3166-1 alpha-3 code of the target country
+     * @return the matching {@link Country}
+     * @throws ResponseStatusException with HTTP 404 if the code is missing or no matching country is found
+     */
     public Country getCountryByCode(List<Country> cachedCountries, String alpha3Code) {
         if (alpha3Code == null || alpha3Code.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Country not found with code: " + alpha3Code);
@@ -101,6 +133,14 @@ public class CountryService {
                 .toList();
     }
 
+    /**
+     * Filters a list of countries by searching for a substring in their common or official names.
+     * The search is case-insensitive.
+     *
+     * @param cachedCountries the list of countries to filter
+     * @param name            the search query string
+     * @return a list of countries containing the search string in their name, or the original list if the query is blank
+     */
     public List<Country> getCountriesByName(List<Country> cachedCountries, String name) {
         if (name == null || name.isBlank()) {
             return cachedCountries;
@@ -115,10 +155,14 @@ public class CountryService {
     }
 
     /**
-     * Slices an already filtered/sorted list into one page.
-     * A page past the end returns no items but still reports the totals, so the client can clamp.
+     * Slices an already filtered and sorted list into a single pagination window.
+     * Requesting a page beyond the available items returns an empty list but preserves total counts.
      *
-     * @throws ResponseStatusException 400 when page < 1 or size is outside 1..{@value MAX_PAGE_SIZE}
+     * @param countries the complete, pre-filtered dataset to paginate
+     * @param page      the 1-based page index to retrieve
+     * @param size      the number of items per page
+     * @return a {@link PagedResponse} containing the data slice and pagination metadata
+     * @throws ResponseStatusException 400 when page < 1 or size is outside the allowed bounds (1 to {@value MAX_PAGE_SIZE})
      */
     public PagedResponse<Country> paginate(List<Country> countries, int page, int size) {
         if (page < 1) {

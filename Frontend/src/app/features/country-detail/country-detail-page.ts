@@ -74,19 +74,27 @@ export class CountryDetailPage {
   protected readonly extraTimezones = computed(() => Math.max(0, (this.country()?.timezones.length ?? 0) - 1));
   protected readonly allTimezones = computed(() => this.country()?.timezones.join(', ') ?? '');
 
+  /** Facts not already shown in the hero or the stat tiles. */
   protected readonly facts = computed<FactRow[]>(() => {
     const c = this.country();
     if (!c) {
       return [];
     }
     const list = (values: string[]) => (values.length ? values.join(', ') : '—');
+    const yesNo = (value: boolean | null) => (value === null ? '—' : value ? 'Yes' : 'No');
+    const capitalise = (value: string | null) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : '—');
     return [
-      { label: 'ISO code', value: `${c.alpha2Code} / ${c.alpha3Code}` },
-      { label: 'Capital', value: list(c.capitals) },
-      { label: 'Subregion', value: c.subregion || '—' },
-      { label: 'Timezones', value: list(c.timezones) },
       { label: 'Languages', value: list(c.languages) },
       { label: 'Currency', value: list(c.currencies) },
+      { label: 'Calling code', value: list(c.callingCodes) },
+      { label: 'Top-level domain', value: list(c.topLevelDomains) },
+      { label: 'Drives on', value: capitalise(c.drivingSide) },
+      { label: 'UN member', value: yesNo(c.unMember) },
+      { label: 'EU member', value: yesNo(c.euMember) },
+      { label: 'Landlocked', value: yesNo(c.landlocked) },
+      { label: 'Government', value: c.governmentType || '—' },
+      { label: 'Demonym', value: c.demonym || '—' },
+      { label: 'Week starts on', value: capitalise(c.startOfWeek) },
     ];
   });
 

@@ -17,6 +17,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Service responsible for the core logic of the flag guessing game.
+ * Handles generating randomized game rounds, providing valid answer pools for autocomplete,
+ * and evaluating user guesses using tolerant string normalization.
+ */
 @Service
 public class GameService {
 
@@ -30,12 +35,16 @@ public class GameService {
     }
 
     /**
-     * Picks {@code count} distinct countries that have a flag image.
-     * The cached list is shuffled once and walked in order; a country is only added to the
-     * result set when it carries a flag image, so a round can never show an empty picture.
-     * Returns fewer rounds when fewer countries qualify (the demo API key returns one country).
+     * Generates a randomized set of game rounds by picking {@code count} distinct countries
+     * that possess a valid flag image. The available country pool is shuffled once,
+     * ensuring that rounds are random and no empty images are presented to the user.
+     * If the requested count exceeds the number of valid countries available (e.g., in a limited
+     * demo environment), it will return as many valid rounds as possible.
      *
-     * @throws ResponseStatusException 400 when count is outside 1..{@value MAX_ROUNDS}
+     * @param countries the pool of available countries to pick from
+     * @param count     the requested number of rounds (must be between 1 and {@value MAX_ROUNDS})
+     * @return a list of {@link FlagRound} objects representing the selected game rounds
+     * @throws ResponseStatusException with HTTP 400 if the requested count is out of bounds
      */
     public List<FlagRound> pickFlags(List<Country> countries, int count) {
         if (count < 1 || count > MAX_ROUNDS) {
@@ -61,7 +70,14 @@ public class GameService {
                 .toList();
     }
 
-    /** Every distinct common name, sorted, for the answer autocomplete. */
+
+    /**
+     * Extracts and sorts all distinct common country names from the provided list.
+     * This is primarily used to populate frontend autocomplete suggestions for user answers.
+     *
+     * @param countries the list of countries to extract names from
+     * @return a sorted, deduplicated list of common country names (case-insensitive alphabetical order)
+     */
     public List<String> names(List<Country> countries) {
         return countries.stream()
                 .map(Country::commonName)
@@ -72,11 +88,17 @@ public class GameService {
     }
 
     /**
-     * Compares the answer with the common and official name after normalising both:
-     * lower-case, diacritics and punctuation stripped, whitespace collapsed.
-     * A blank answer is a skip and is never correct.
+     * Evaluates a user's guess against a specific country's common and official names.
+     * <p>
+     * The comparison is highly tolerant: it ignores case, strips diacritics (accents),
+     * removes punctuation, and collapses whitespace. A blank or null answer is considered a skip
+     * and will always evaluate to incorrect.
      *
-     * @throws ResponseStatusException 404 when the code matches no country
+     * @param countries  the pool of available countries
+     * @param alpha3Code the 3-letter ISO code of the target country being guessed
+     * @param answer     the user's raw text guess
+     * @return an {@link AnswerResult} containing the correct data and a boolean indicating if the guess was correct
+     * @throws ResponseStatusException with HTTP 404 if the provided code does not match any known country
      */
     public AnswerResult checkAnswer(List<Country> countries, String alpha3Code, String answer) {
         Country country = countryService.getCountryByCode(countries, alpha3Code);
@@ -86,11 +108,30 @@ public class GameService {
         return new AnswerResult(country.alpha3Code(), country.commonName(), country.flagUrl(), correct);
     }
 
+    /**
+     * Helper method to determine if a country has a valid flag image URL.
+     *
+     * @param country the country to check
+     * @return {@code true} if the flag URL is present and not blank, {@code false} otherwise
+     */
     static boolean hasFlagImage(Country country) {
         return country.flagUrl() != null && !country.flagUrl().isBlank();
     }
 
-    /** "Côte d’Ivoire" → "cote d ivoire". */
+    /**
+     * Normalizes a string for lenient comparison.
+     * Processes the input by:
+     * <ul>
+     *     <li>Decomposing Unicode characters (NFD) and stripping diacritical marks (e.g., accents).</li>
+     *     <li>Converting to lowercase using the root locale.</li>
+     *     <li>Replacing all non-alphanumeric characters (punctuation, special symbols) with spaces.</li>
+     *     <li>Trimming leading and trailing whitespace.</li>
+     * </ul>
+     * Example: {@code "Côte d’Ivoire"} becomes {@code "cote d ivoire"}.
+     *
+     * @param value the raw input string to normalize
+     * @return the heavily normalized string, or an empty string if the input was null
+     */
     static String normalise(String value) {
         if (value == null) {
             return "";

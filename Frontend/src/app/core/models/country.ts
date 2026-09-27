@@ -15,6 +15,18 @@ export interface Country {
   flagEmoji: string | null;
   flagUrl: string | null;
   timezones: string[];
+  /** Dialling prefixes, already prefixed with "+". */
+  callingCodes: string[];
+  topLevelDomains: string[];
+  drivingSide: string | null;
+  unMember: boolean | null;
+  euMember: boolean | null;
+  landlocked: boolean | null;
+  governmentType: string | null;
+  demonym: string | null;
+  startOfWeek: string | null;
+  wikipediaUrl: string | null;
+  description: string | null;
 }
 
 /** One page of a list endpoint, as the backend's `PagedResponse` returns it. */

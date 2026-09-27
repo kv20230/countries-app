@@ -55,7 +55,6 @@ public class CountryController {
             )
     })
     @GetMapping
-    //returns one page of all countries
     public PagedResponse<Country> getAllCountries(
             @Parameter(description = PAGE_DESCRIPTION, example = "1")
             @RequestParam(defaultValue = "1") int page,
@@ -220,6 +219,4 @@ public class CountryController {
         List<Country> cachedCountries = countryService.getAllCountries();
         return countryService.paginate(countryService.getCountriesByName(cachedCountries, name), page, size);
     }
-
-
 }

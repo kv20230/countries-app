@@ -14,6 +14,14 @@ import java.time.Instant;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * Handles custom {@link ExternalApiException} thrown when a downstream call to an external
+     * provider (e.g., restcountries.com) fails. Maps the error to a 502 Bad Gateway response
+     * and includes the original upstream HTTP status code in the response payload.
+     *
+     * @param ex the exception containing the upstream error message and status code
+     * @return a {@link ResponseEntity} containing a standardized {@link ProblemDetail} with a 502 status
+     */
     @ExceptionHandler(ExternalApiException.class)
     public ResponseEntity<ProblemDetail> handleExternalApiException(ExternalApiException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
@@ -29,8 +37,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Keeps the status the service chose (404 for an unknown country, 400 for a bad page).
-     * Without this the generic handler below would turn every one of them into a 500.
+     * Handles Spring's {@link ResponseStatusException}, preserving the specific HTTP status code
+     * and reason chosen by the throwing service (e.g., 404 for an unknown country, 400 for a bad page request).
+     * Transforms the exception into a standardized RFC 7807 {@link ProblemDetail} format.
+     *
+     * @param ex the exception containing the target HTTP status code and specific error reason
+     * @return a {@link ResponseEntity} containing a {@link ProblemDetail} matching the exception's status code
      */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ProblemDetail> handleResponseStatusException(ResponseStatusException ex) {
@@ -43,6 +55,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(problemDetail);
     }
 
+    /**
+     * Acts as a global catch-all fallback for any unexpected and unhandled exceptions.
+     * Masks the underlying exception stack trace from the client for security reasons,
+     * returning a generic 500 Internal Server Error response.
+     *
+     * @param ex the unexpected exception that bypassed specific handlers
+     * @return a {@link ResponseEntity} containing a generic 500 {@link ProblemDetail}
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGenericException(Exception ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
